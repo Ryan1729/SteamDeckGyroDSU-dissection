@@ -1,3 +1,19 @@
+# Declaration of Intent
+
+So this isn't a fork that is intended to have anythgin to contribute back to the source repo. Instead the intent is to cutaway things until I personally understand more about how this works, such that I can make a new program that does a simlar thing. The ide is that I can keep the interesting part of the program working, so I know I haven't broken that part.
+
+Specifically, I want to get to the point that I have a program that just feeds generated test data to an instance of Dolphin, ideally eventually on the same machine as the program is running on, to simplify things.
+
+I want to do this as a step in getting a program that woudl ultimately getting its motion data from an entirely different source than a Steam Deck.
+
+I attempted to try and get a working version of a program that jsut spews test data into Dolphin workign from scratch and failed. Specifically I only got as far as causing Dolphin to log errors about the crc value being bad, and not getting anything to show up in the devices list.
+
+Dissecting things like this is slow and tedious, but has the considerable advantage of starting from something that demonstrably works, and maintaining that it works as we go, meaning we don't have to ever deal with something not workign for large mysterious, untrackable reasons. If it stops working, it will be due to a change, we made, and we can back out to a working state, and examine the diff to understand the change. THis is much, much nicer than needing to deal with things not working and not knowing where to look for the answer!
+
+Original README below
+
+----
+
 # SteamDeckGyroDSU
 **DSU** (*cemuhook protocol*) server for motion data for **Steam Deck**.
 
