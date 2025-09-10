@@ -10,6 +10,31 @@ I attempted to try and get a working version of a program that jsut spews test d
 
 Dissecting things like this is slow and tedious, but has the considerable advantage of starting from something that demonstrably works, and maintaining that it works as we go, meaning we don't have to ever deal with something not workign for large mysterious, untrackable reasons. If it stops working, it will be due to a change, we made, and we can back out to a working state, and examine the diff to understand the change. THis is much, much nicer than needing to deal with things not working and not knowing where to look for the answer!
 
+----
+
+# Current Plan
+
+(Subject to revision, abandonment, and/or lack of completed items being tracked as such)
+
+* Get an identifiably differnt version built and onto my steam deck
+* Replace the bits that read the sensors with parts that just constantly feed varying dummy data across the socket
+* Run it on the same mcahine as Dolphin, and confirm that all works still
+* Repeatedly cut away chaff until there's little enough left that the conceptual steps are clear
+    * Consider making a sequence diagram based on my understanding
+* Take that understanding to a different project
+
+----
+
+# Dissection Build Steps
+
+These are quick reference notes on how to build for the purposes of dissection.
+
+`create_package.sh` makes a zip in `pkgbin/SteamDeckGyroDSU.zip`
+
+One way to get it over to the steam deck is to run an HTTP server in tat directory on the local network
+
+----
+
 Original README below
 
 ----
