@@ -38,7 +38,24 @@ namespace kmicki::hiddev
         {
             // Get hiddev* device
             sd_device *hidDevice = NULL;
-            if(sd_device_new_from_devname(&hidDevice, hiddevFile.path().c_str()) != 0)
+
+            struct stat st;
+            if (stat(hiddevFile.path().c_str(), &st) != 0)
+            {
+                continue;
+            }
+
+            char type = 0;
+            if (S_ISCHR(st.st_mode))
+            {
+                type = 'c';
+            }
+            else if (S_ISBLK(st.st_mode))
+            {
+                type = 'b';
+            }
+
+            if(sd_device_new_from_devnum(&hidDevice, type, st.st_rdev) != 0)
                 continue;
 
             // Go up to usb_device
