@@ -1,6 +1,6 @@
 # Declaration of Intent
 
-So this isn't a fork that is intended to have anythgin to contribute back to the source repo. Instead the intent is to cutaway things until I personally understand more about how this works, such that I can make a new program that does a simlar thing. The ide is that I can keep the interesting part of the program working, so I know I haven't broken that part.
+So this isn't a fork that is intended to have anything to contribute back to the source repo. Instead the intent is to cutaway things until I personally understand more about how this works, such that I can make a new program that does a simlar thing. The ide is that I can keep the interesting part of the program working, so I know I haven't broken that part.
 
 Specifically, I want to get to the point that I have a program that just feeds generated test data to an instance of Dolphin, ideally eventually on the same machine as the program is running on, to simplify things.
 
@@ -16,7 +16,11 @@ Dissecting things like this is slow and tedious, but has the considerable advant
 
 (Subject to revision, abandonment, and/or lack of completed items being tracked as such)
 
-* Get an identifiably differnt version built and onto my steam deck
+* Get an identifiably different version built and onto my steam deck
+    * get a version building ✔
+        * needed to make a change to get it to compile
+    * modify the launch script to use a local exe instead of downloading it
+    * confirm changes didn't break anything
 * Replace the bits that read the sensors with parts that just constantly feed varying dummy data across the socket
 * Run it on the same mcahine as Dolphin, and confirm that all works still
 * Repeatedly cut away chaff until there's little enough left that the conceptual steps are clear

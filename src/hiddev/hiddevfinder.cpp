@@ -4,8 +4,41 @@
 #include <iomanip>
 #include <filesystem>
 #include <systemd/sd-device.h>
+#include <limits.h>
     
 using namespace kmicki::shell;
+
+/*
+ * Drop-in replacement for sd_device_new_from_devname()
+ * Works on systems where that symbol isn't exported.
+ *
+ * devname: path to device node (e.g. "/dev/hiddev0" or "/dev/input/by-id/foo")
+ * ret:     pointer to sd_device* to receive the device
+ *
+ * Returns 0 on success, negative errno-style error on failure.
+ */
+static inline int my_sd_device_new_from_devname(sd_device **ret, const char *devname) {
+    if (!ret || !devname)
+        return -EINVAL;
+
+    char resolved[PATH_MAX];
+    if (!realpath(devname, resolved))
+        return -errno;
+
+    struct stat st;
+    if (stat(resolved, &st) < 0)
+        return -errno;
+
+    char type;
+    if (S_ISCHR(st.st_mode))
+        type = 'c';
+    else if (S_ISBLK(st.st_mode))
+        type = 'b';
+    else
+        return -ENOTTY; // Not a device node
+
+    return sd_device_new_from_devnum(ret, type, st.st_rdev);
+}
 
 namespace kmicki::hiddev
 {
@@ -39,23 +72,7 @@ namespace kmicki::hiddev
             // Get hiddev* device
             sd_device *hidDevice = NULL;
 
-            struct stat st;
-            if (stat(hiddevFile.path().c_str(), &st) != 0)
-            {
-                continue;
-            }
-
-            char type = 0;
-            if (S_ISCHR(st.st_mode))
-            {
-                type = 'c';
-            }
-            else if (S_ISBLK(st.st_mode))
-            {
-                type = 'b';
-            }
-
-            if(sd_device_new_from_devnum(&hidDevice, type, st.st_rdev) != 0)
+            if(my_sd_device_new_from_devname(&hidDevice, hiddevFile.path().c_str()) != 0)
                 continue;
 
             // Go up to usb_device

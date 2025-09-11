@@ -1,7 +1,10 @@
 #!/bin/sh
 
+# We assume a local http server is set up, and hardcode the internal IP here
+SERVER_ADDR=192.168.1.67:5042
+
 echo "Grabbing latest release..."
-if curl -L -O -s https://github.com/kmicki/SteamDeckGyroDSU/releases/latest/download/SteamDeckGyroDSUSetup.zip >/dev/null; then
+if curl -L -O -s "$SERVER_ADDR/SteamDeckGyroDSUSetup.zip"; then
 	echo "Latest release downloaded."
 else
 	echo -e "\e[1mFailed to grab latest .zip file...\e[0m"
