@@ -18,7 +18,6 @@ using namespace kmicki::cemuhook::protocol;
 using namespace kmicki::cemuhook;
 
 const LogLevel cLogLevel = LogLevelDebug; // change to Default when configuration is possible
-const bool cRunPresenter = false;
 const bool cUseHiddevFile = false;
 const bool cTestRun = false;
 
@@ -91,10 +90,7 @@ int main()
 
     stop = false;
 
-    if(cRunPresenter)
-        SetLogLevel(LogLevelNone);
-    else
-        SetLogLevel(cLogLevel);
+    SetLogLevel(cLogLevel);
 
     { LogF() << "SteamDeckGyroDSU Version: " << cVersion; }
 
@@ -129,11 +125,7 @@ int main()
     uint32_t lastInc = 0;
     int stopping = 0;
 
-    std::unique_ptr<std::thread> presenter;
-    if(cRunPresenter)
-        presenter.reset(new std::thread(PresenterRun,&reader));
-
-    if(cTestRun && !cRunPresenter)
+    if(cTestRun)
         reader.Start();
 
     {
