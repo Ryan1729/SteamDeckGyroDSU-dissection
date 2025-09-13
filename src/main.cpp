@@ -18,7 +18,6 @@ using namespace kmicki::cemuhook::protocol;
 using namespace kmicki::cemuhook;
 
 const LogLevel cLogLevel = LogLevelDebug; // change to Default when configuration is possible
-const bool cUseHiddevFile = false;
 const bool cTestRun = false;
 
 const int cFrameLen = 64;       // Steam Deck Controls' custom HID report length in bytes
@@ -96,23 +95,7 @@ int main()
 
     std::unique_ptr<HidDevReader> readerPtr;
 
-    if(cUseHiddevFile)
-    {
-        int hidno = FindHidDevNo(cVID,cPID);
-        if(hidno < 0) 
-        {
-            Log("Steam Deck Controls' HID device not found.");
-            return 0;
-        }
-
-        { LogF() << "Found Steam Deck Controls' HID device at /dev/usb/hiddev" << hidno; }
-        
-        readerPtr.reset(new HidDevReader(hidno,cFrameLen,cScanTimeUs));
-    }
-    else
-    {
-        readerPtr.reset(new HidDevReader(cVID,cPID,cInterfaceNumber,cFrameLen,cScanTimeUs));
-    }
+    readerPtr.reset(new HidDevReader(cVID,cPID,cInterfaceNumber,cFrameLen,cScanTimeUs));
 
     HidDevReader &reader = *readerPtr;
 

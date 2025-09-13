@@ -4,6 +4,7 @@
 
 #include <iostream>
 #include <iomanip>
+#include <cmath>
 
 using namespace kmicki::cemuhook::protocol;
 using namespace kmicki::log;
@@ -67,32 +68,19 @@ namespace kmicki::sdgyrodsu
 
         SetTimestamp(data, frame.Increment);
         
-        data.accX = -SmoothAccel(lastAccelRtL,frame.AccelAxisRightToLeft);
-        data.accY = -SmoothAccel(lastAccelFtB,frame.AccelAxisFrontToBack);
-        data.accZ = SmoothAccel(lastAccelTtB,frame.AccelAxisTopToBottom);
-        if(frame.Header & 0xFF == 0xDD)
-        {
-            data.pitch = 0.0f;
-            data.yaw = 0.0f;
-            data.roll = 0.0f;
-        }
-        else 
-        {
-            auto gyroRtL = frame.GyroAxisRightToLeft;
-            auto gyroFtB = frame.GyroAxisFrontToBack;
-            auto gyroTtB = frame.GyroAxisTopToBottom;
+        float t = static_cast<float>(data.timestampL) / 1'000'000.0f;
 
-            if(gyroRtL < GYRO_DEADZONE && gyroRtL > -GYRO_DEADZONE)
-                gyroRtL = 0;
-            if(gyroFtB < GYRO_DEADZONE && gyroFtB > -GYRO_DEADZONE)
-                gyroFtB = 0;
-            if(gyroTtB < GYRO_DEADZONE && gyroTtB > -GYRO_DEADZONE)
-                gyroTtB = 0;
+        static const float scale = 45.0f;
 
-            data.pitch = (float)gyroRtL/gyro1dps;
-            data.yaw = -(float)gyroFtB/gyro1dps;
-            data.roll = (float)gyroTtB/gyro1dps;
-        }
+        data.accX = std::sin(t) * scale;
+        data.accY = std::cos(t) * scale;
+        data.accZ = std::sin(t + 0.5) * scale;
+
+        static const float g = 9.81f;
+
+        data.pitch = g * std::sin(t);
+        data.yaw = g * std::cos(t);
+        data.roll = 0.0f;
     }
 
     CemuhookAdapter::CemuhookAdapter(hiddev::HidDevReader & _reader, bool persistent)
