@@ -71,8 +71,7 @@ void PresenterRun(HidDevReader * reader)
     reader->Start();
     auto & frameServe = reader->GetServe();
     auto const& data = frameServe.GetPointer();
-    int temp;
-    void* tempPtr = reinterpret_cast<void*>(&temp);
+
     Presenter::Initialize();
     while(true)
     {
@@ -104,9 +103,6 @@ int main()
     CemuhookAdapter adapter(reader);
     reader.SetNoGyro(adapter.NoGyro);
     Server server(adapter);
-
-    uint32_t lastInc = 0;
-    int stopping = 0;
 
     if(cTestRun)
         reader.Start();

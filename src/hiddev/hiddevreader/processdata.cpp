@@ -22,12 +22,10 @@ namespace kmicki::hiddev
         static const std::chrono::microseconds cReadDataRestartTimeout(500);
         static const int cReportMissedTicksPeriod = 250;
         int missedTicks = 0;
-        int nonMissedTicks = 0;
         
         auto const& frame = Frame.GetPointerToFill();
         auto const& hidData = data.GetPointer();
 
-        int missedLossTicks = 0;
         int nonMissedLossTicks = 0;
 
         Log("HidDevReader::ProcessData: Started.",LogLevelDebug);

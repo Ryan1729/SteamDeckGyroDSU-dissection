@@ -163,7 +163,7 @@ namespace kmicki::cemuhook
 
     ssize_t SendPacket(int const& socketFd, std::pair<uint16_t , void const*> const& outBuf, sockaddr_in const& sockInClient)
     {
-        return sendto(socketFd,outBuf.second,outBuf.first,0,(sockaddr*) &sockInClient, sizeof(sockInClient));
+        return sendto(socketFd,outBuf.second,outBuf.first,0,reinterpret_cast<sockaddr*>(const_cast<sockaddr_in*>(&sockInClient)), sizeof(sockInClient));
     }
 
     void Server::CheckClientTimeout(std::unique_ptr<std::thread> & sendThread, bool increment)
@@ -353,7 +353,7 @@ namespace kmicki::cemuhook
                 {
                     ModifyDataAnswerId(client.id);
                     {
-                        std::lock_guard lock(socketSendMutex);
+                        std::lock_guard lock2(socketSendMutex);
                         SendPacket(socketFd,outBuf,client.address);
                     }
                 }

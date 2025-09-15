@@ -57,7 +57,7 @@ namespace kmicki::hiddev
         readDataApi = new ReadDataApi(vId, pId, interfaceNumber, _frameLen, scanTimeUs);
 
         auto* readDataOp = readDataApi;
-        ProcessData* processData;
+
         ServeFrame* serveFrame = new ServeFrame(readDataOp->Data);
 
         AddOperation(readDataOp);
