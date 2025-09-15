@@ -26,8 +26,8 @@ namespace kmicki::sdgyrodsu
 
         bool IsControllerConnected();
 
-        cemuhook::protocol::MotionData GetMotionData(SdHidFrame const& frame, float &lastAccelRtL, float &lastAccelFtB, float &lastAccelTtB);
-        static void SetMotionData(SdHidFrame const& frame, cemuhook::protocol::MotionData &data, float &lastAccelRtL, float &lastAccelFtB, float &lastAccelTtB);
+        cemuhook::protocol::MotionData GetMotionData(SdHidFrame const& frame);
+        static void SetMotionData(SdHidFrame const& frame, cemuhook::protocol::MotionData &data);
 
         SignalOut NoGyro;
 

@@ -21,16 +21,12 @@ namespace kmicki::sdgyrodsu
         static MotionData md;
         auto incSpan = frame.Increment-lastInc; 
 
-        static float lastAccelRtL = 0;
-        static float lastAccelFtB = 0;
-        static float lastAccelTtB = 0;
-
         if(lastInc && incSpan > maxSpan)
             maxSpan = incSpan;
 
         lastInc = frame.Increment;
 
-        CemuhookAdapter::SetMotionData(frame,md,lastAccelRtL,lastAccelFtB,lastAccelTtB);
+        CemuhookAdapter::SetMotionData(frame,md);
 
         int k=0;
         move(++k,0); printw("INC  : %10d         ",frame.Increment);

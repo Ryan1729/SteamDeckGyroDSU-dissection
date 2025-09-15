@@ -1,5 +1,4 @@
 #include "hiddev/hiddevreader.h"
-#include "hiddev/hiddevfinder.h"
 #include "sdgyrodsu/sdhidframe.h"
 #include "sdgyrodsu/presenter.h"
 #include "cemuhook/cemuhookprotocol.h"
@@ -64,21 +63,6 @@ void SignalHandler(int signal)
         stop = true;
     }
     stopCV.notify_all();
-}
-
-void PresenterRun(HidDevReader * reader)
-{
-    reader->Start();
-    auto & frameServe = reader->GetServe();
-    auto const& data = frameServe.GetPointer();
-
-    Presenter::Initialize();
-    while(true)
-    {
-        auto lock = frameServe.GetConsumeLock();
-        Presenter::Present(GetSdFrame(*data));
-    }
-    Presenter::Finish();
 }
 
 int main()

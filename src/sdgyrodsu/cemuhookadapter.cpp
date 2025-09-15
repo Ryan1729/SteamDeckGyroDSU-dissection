@@ -18,27 +18,13 @@ using namespace kmicki::log;
 namespace kmicki::sdgyrodsu
 {
 
-    MotionData CemuhookAdapter::GetMotionData(SdHidFrame const& frame, float &lastAccelRtL, float &lastAccelFtB, float &lastAccelTtB)
+    MotionData CemuhookAdapter::GetMotionData(SdHidFrame const& frame)
     {
         MotionData data;
 
-        SetMotionData(frame,data,lastAccelRtL,lastAccelFtB,lastAccelTtB);
+        SetMotionData(frame,data);
 
         return data;
-    }
-    
-    float SmoothAccel(float &last, int16_t curr)
-    {
-        static const float acc1G = (float)ACC_1G;
-        if(abs(curr - last) < ACCEL_SMOOTH)
-        {
-            last = ((float)last*0.95+(float)curr*0.05);
-        }
-        else
-        {
-            last = (float)curr;
-        }
-        return last/acc1G;
     }
 
     MotionData & SetTimestamp(MotionData &data, uint64_t const& timestamp)
@@ -61,11 +47,8 @@ namespace kmicki::sdgyrodsu
         return data;
     }
 
-    void CemuhookAdapter::SetMotionData(SdHidFrame const& frame, MotionData &data, float &lastAccelRtL, float &lastAccelFtB, float &lastAccelTtB)
+    void CemuhookAdapter::SetMotionData(SdHidFrame const& frame, MotionData &data)
     {
-        static const float acc1G = (float)ACC_1G;
-        static const float gyro1dps = (float)GYRO_1DEGPERSEC;
-
         SetTimestamp(data, frame.Increment);
         
         float t = static_cast<float>(data.timestampL) / 1'000'000.0f;
@@ -170,7 +153,7 @@ namespace kmicki::sdgyrodsu
                         }
                     }
 
-                    SetMotionData(frame,motion,lastAccelRtL,lastAccelFtB,lastAccelTtB);
+                    SetMotionData(frame,motion);
 
                     if(toReplicate > 0)
                     {
