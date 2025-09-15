@@ -1,6 +1,5 @@
 #include "hiddev/hiddevreader.h"
 #include "sdgyrodsu/sdhidframe.h"
-#include "sdgyrodsu/presenter.h"
 #include "cemuhook/cemuhookprotocol.h"
 #include "cemuhook/cemuhookserver.h"
 #include "sdgyrodsu/cemuhookadapter.h"

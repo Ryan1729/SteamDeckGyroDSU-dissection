@@ -26,12 +26,10 @@ namespace kmicki::sdgyrodsu
 
         bool IsControllerConnected();
 
-        cemuhook::protocol::MotionData GetMotionData(SdHidFrame const& frame);
-        static void SetMotionData(SdHidFrame const& frame, cemuhook::protocol::MotionData &data);
-
         SignalOut NoGyro;
 
         private:
+        
         bool ignoreFirst;
         bool isPersistent;
 
@@ -46,7 +44,6 @@ namespace kmicki::sdgyrodsu
         float lastAccelTtB;
 
         int toReplicate;
-        int noGyroCooldown;
 
         pipeline::Serve<hiddev::HidDevReader::frame_t> * frameServe;
     };

@@ -17,16 +17,6 @@ using namespace kmicki::log;
 
 namespace kmicki::sdgyrodsu
 {
-
-    MotionData CemuhookAdapter::GetMotionData(SdHidFrame const& frame)
-    {
-        MotionData data;
-
-        SetMotionData(frame,data);
-
-        return data;
-    }
-
     MotionData & SetTimestamp(MotionData &data, uint64_t const& timestamp)
     {
         data.timestampL = (uint32_t)(timestamp & 0xFFFFFFFF);
@@ -47,30 +37,11 @@ namespace kmicki::sdgyrodsu
         return data;
     }
 
-    void CemuhookAdapter::SetMotionData(SdHidFrame const& frame, MotionData &data)
-    {
-        SetTimestamp(data, frame.Increment);
-        
-        float t = static_cast<float>(data.timestampL) / 1'000'000.0f;
-
-        static const float scale = 45.0f;
-
-        data.accX = std::sin(t) * scale;
-        data.accY = std::cos(t) * scale;
-        data.accZ = std::sin(t + 0.5) * scale;
-
-        static const float g = 9.81f;
-
-        data.pitch = g * std::sin(t);
-        data.yaw = g * std::cos(t);
-        data.roll = 0.0f;
-    }
-
     CemuhookAdapter::CemuhookAdapter(hiddev::HidDevReader & _reader, bool persistent)
     : reader(_reader),
       lastInc(0),
       lastAccelRtL(0.0),lastAccelFtB(0.0),lastAccelTtB(0.0),
-      isPersistent(persistent), toReplicate(0), noGyroCooldown(0)
+      isPersistent(persistent), toReplicate(0)
     {
         Log("CemuhookAdapter: Initialized. Waiting for start of frame grab.",LogLevelDebug);
     }
@@ -87,10 +58,7 @@ namespace kmicki::sdgyrodsu
     int const& CemuhookAdapter::SetMotionDataNewFrame(MotionData &motion)
     {
         static const int64_t cMaxDiffReplicate = 100;
-        static const int cNoGyroCooldownFrames = 1000;
         static const int cMaxRepeatedLoop = 1000;
-
-        if(noGyroCooldown > 0) --noGyroCooldown;
 
         auto const& dataFrame = frameServe->GetPointer();
 
@@ -111,13 +79,11 @@ namespace kmicki::sdgyrodsu
                 //Log("CONSUME LOCK ACQUIRED.");
                 auto const& frame = GetSdFrame(*dataFrame);
 
-                if( noGyroCooldown <= 0
-                    &&  frame.AccelAxisFrontToBack == 0 && frame.AccelAxisRightToLeft == 0 
+                if( frame.AccelAxisFrontToBack == 0 && frame.AccelAxisRightToLeft == 0 
                     &&  frame.AccelAxisTopToBottom == 0 && frame.GyroAxisFrontToBack == 0 
                     &&  frame.GyroAxisRightToLeft == 0 && frame.GyroAxisTopToBottom == 0)
                 {
                     NoGyro.SendSignal();
-                    noGyroCooldown = cNoGyroCooldownFrames;
                 }
 
                 int64_t diff = (int64_t)frame.Increment - (int64_t)lastInc;
@@ -152,8 +118,24 @@ namespace kmicki::sdgyrodsu
                             toReplicate = diff-1;
                         }
                     }
+                    
+                    // Set the MotionData to dummy values {
+                    SetTimestamp(motion, frame.Increment);
+        
+                    float t = static_cast<float>(motion.timestampL) / 1'000'000.0f;
 
-                    SetMotionData(frame,motion);
+                    static const float scale = 45.0f;
+
+                    motion.accX = std::sin(t) * scale;
+                    motion.accY = std::cos(t) * scale;
+                    motion.accZ = std::sin(t + 0.5) * scale;
+
+                    static const float g = 9.81f;
+
+                    motion.pitch = g * std::sin(t);
+                    motion.yaw = g * std::cos(t);
+                    motion.roll = 0.0f;
+                    // }
 
                     if(toReplicate > 0)
                     {
