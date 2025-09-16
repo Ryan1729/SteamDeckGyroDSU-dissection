@@ -16,13 +16,6 @@ using namespace kmicki::cemuhook::protocol;
 using namespace kmicki::cemuhook;
 
 const LogLevel cLogLevel = LogLevelDebug; // change to Default when configuration is possible
-const bool cTestRun = false;
-
-const int cFrameLen = 64;       // Steam Deck Controls' custom HID report length in bytes
-const int cScanTimeUs = 4000;   // Steam Deck Controls' period between received report data in microseconds
-const uint16_t cVID = 0x28de;   // Steam Deck Controls' USB Vendor-ID
-const uint16_t cPID = 0x1205;   // Steam Deck Controls' USB Product-ID
-const int cInterfaceNumber = 2; // Steam Deck Controls' USB Interface Number
 
 const std::string cVersion = "2.1";   // Release version
 
@@ -75,20 +68,8 @@ int main()
 
     { LogF() << "SteamDeckGyroDSU Version: " << cVersion; }
 
-    std::unique_ptr<HidDevReader> readerPtr;
-
-    readerPtr.reset(new HidDevReader(cVID,cPID,cInterfaceNumber,cFrameLen,cScanTimeUs));
-
-    HidDevReader &reader = *readerPtr;
-
-    reader.SetStartMarker({ 0x01, 0x00, 0x09, 0x40 }); // Beginning of every Steam Decks' HID frame
-
-    CemuhookAdapter adapter(reader);
-    reader.SetNoGyro(adapter.NoGyro);
+    CemuhookAdapter adapter;
     Server server(adapter);
-
-    if(cTestRun)
-        reader.Start();
 
     {
         std::unique_lock lock(stopMutex);

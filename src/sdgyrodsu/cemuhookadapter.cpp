@@ -37,11 +37,16 @@ namespace kmicki::sdgyrodsu
         return data;
     }
 
-    CemuhookAdapter::CemuhookAdapter(hiddev::HidDevReader & _reader, bool persistent)
-    : reader(_reader),
-      lastInc(0),
+    const int cFrameLen = 64;       // Steam Deck Controls' custom HID report length in bytes
+    const int cScanTimeUs = 4000;   // Steam Deck Controls' period between received report data in microseconds
+    const uint16_t cVID = 0x28de;   // Steam Deck Controls' USB Vendor-ID
+    const uint16_t cPID = 0x1205;   // Steam Deck Controls' USB Product-ID
+    const int cInterfaceNumber = 2; // Steam Deck Controls' USB Interface Number
+
+    CemuhookAdapter::CemuhookAdapter()
+    : lastInc(0),
       lastAccelRtL(0.0),lastAccelFtB(0.0),lastAccelTtB(0.0),
-      isPersistent(persistent), toReplicate(0)
+      isPersistent(true), toReplicate(0), reader(new kmicki::hiddev::HidDevReader(cVID,cPID,cInterfaceNumber,cFrameLen,cScanTimeUs))
     {
         Log("CemuhookAdapter: Initialized. Waiting for start of frame grab.",LogLevelDebug);
     }
@@ -51,8 +56,17 @@ namespace kmicki::sdgyrodsu
         lastInc = 0;
         ignoreFirst = true;
         Log("CemuhookAdapter: Starting frame grab.",LogLevelDebug);
-        reader.Start();
-        frameServe = &reader.GetServe();
+
+        std::lock_guard startLock(reader->startStopMutex); // prevent starting and stopping at the same time
+
+        Log("HidDevReader: Attempting to start the pipeline...",LogLevelDebug);
+
+        for (auto& thread : reader->pipeline)
+            thread->Start();
+
+        Log("HidDevReader: Started the pipeline.");
+
+        frameServe = &reader->serve->GetServe();
     }
 
     int const& CemuhookAdapter::SetMotionDataNewFrame(MotionData &motion)
@@ -79,8 +93,8 @@ namespace kmicki::sdgyrodsu
                 //Log("CONSUME LOCK ACQUIRED.");
                 auto const& frame = GetSdFrame(*dataFrame);
 
-                if( frame.AccelAxisFrontToBack == 0 && frame.AccelAxisRightToLeft == 0 
-                    &&  frame.AccelAxisTopToBottom == 0 && frame.GyroAxisFrontToBack == 0 
+                if( frame.AccelAxisFrontToBack == 0 && frame.AccelAxisRightToLeft == 0
+                    &&  frame.AccelAxisTopToBottom == 0 && frame.GyroAxisFrontToBack == 0
                     &&  frame.GyroAxisRightToLeft == 0 && frame.GyroAxisTopToBottom == 0)
                 {
                     NoGyro.SendSignal();
@@ -105,23 +119,13 @@ namespace kmicki::sdgyrodsu
                 }
                 else
                 {
-                    if(lastInc != 0 && diff > 1)
-                    {
-                        LogF logMsg((diff > 6)?LogLevelDefault:LogLevelDebug);
-                        logMsg << "CemuhookAdapter: Missed " << (diff-1) << " frames.";
-                        if(diff > 1000)
-                            { LogF(LogLevelTrace) << std::setw(8) << std::setfill('0') << std::setbase(16)
-                                     << "Current increment: 0x" << frame.Increment << ". Last: 0x" << lastInc << "."; }
-                        if(diff <= cMaxDiffReplicate)
-                        {
-                            logMsg << " Replicating...";
-                            toReplicate = diff-1;
-                        }
+                    if(lastInc != 0 && diff > 1 && diff <= cMaxDiffReplicate) {
+                        toReplicate = diff-1;
                     }
-                    
+
                     // Set the MotionData to dummy values {
                     SetTimestamp(motion, frame.Increment);
-        
+
                     float t = static_cast<float>(motion.timestampL) / 1'000'000.0f;
 
                     static const float scale = 45.0f;
@@ -144,9 +148,9 @@ namespace kmicki::sdgyrodsu
                         if(!isPersistent)
                             data = motion;
                     }
-                        
+
                     lastInc = frame.Increment;
-                    
+
                     return toReplicate;
                 }
             }
@@ -170,9 +174,18 @@ namespace kmicki::sdgyrodsu
     void CemuhookAdapter::StopFrameGrab()
     {
         Log("CemuhookAdapter: Stopping frame grab.",LogLevelDebug);
-        reader.StopServe(*frameServe);
+
+        reader->serve->StopServe(*frameServe);
         frameServe = nullptr;
-        reader.Stop();
+
+        std::lock_guard startLock(reader->startStopMutex); // prevent starting and stopping at the same time
+
+        Log("HidDevReader: Attempting to stop the pipeline...",LogLevelDebug);
+
+        for (auto thread = reader->pipeline.rbegin(); thread != reader->pipeline.rend(); ++thread)
+            (*thread)->TryStopThenKill(std::chrono::seconds(10));
+
+        Log("HidDevReader: Stopped the pipeline.");
     }
 
     bool CemuhookAdapter::IsControllerConnected()

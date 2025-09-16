@@ -12,9 +12,7 @@ namespace kmicki::sdgyrodsu
     class CemuhookAdapter
     {
         public:
-        CemuhookAdapter() = delete;
-
-        CemuhookAdapter(hiddev::HidDevReader & _reader, bool persistent = true);
+        CemuhookAdapter();
 
         void StartFrameGrab();
 
@@ -34,7 +32,7 @@ namespace kmicki::sdgyrodsu
         bool isPersistent;
 
         cemuhook::protocol::MotionData data;
-        hiddev::HidDevReader & reader;
+        hiddev::HidDevReader * reader;
 
         uint32_t lastInc;
         uint64_t lastTimestamp;

@@ -55,11 +55,6 @@ namespace kmicki::hiddev
         // maxScanTime: maximum scan time
         HidDevReader(uint16_t const& vId, uint16_t const& pId, const int& interfaceNumber, int const& _frameLen, int const& scanTimeUs);
 
-        // Destructor. 
-        // Stops pipeline.
-        // Closes input file.
-        ~HidDevReader();
-
         // Set start marker in case hiddev file doesn't provide a way to find start of the frame.
         void SetStartMarker(std::vector<char> const& marker);
 
@@ -69,21 +64,7 @@ namespace kmicki::hiddev
         // Stop serving
         void StopServe(Serve<frame_t> & _serve);
 
-        // Start process of grabbing frames.
-        void Start();
-
-        // Stop process of grabbing frames
-        void Stop();
-
-        // Is grabbing frames in progress?
-        bool IsStarted();
-
-        // Is grabbing frames being stopped right now?
-        bool IsStopping();
-
         void SetNoGyro(SignalOut& _noGyro);
-
-        private:
 
         // Pipeline threads
 
