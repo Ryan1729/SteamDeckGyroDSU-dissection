@@ -24,7 +24,8 @@ Dissecting things like this is slow and tedious, but has the considerable advant
         They did!
     * get original version building on steam deck, and confirm built version works ✔
         Not saved to repo
-* Replace the bits that read the sensors with parts that just constantly feed varying dummy data across the socket
+* Replace the bits that read the sensors with parts that just constantly feed varying dummy data across the socket ✔
+* Make sure i can jsut run it as a userspace exe, not a system service, and make dolphin move, from the steam deck
 * Run it on the same machine as Dolphin, and confirm that all works still
 * Repeatedly cut away chaff until there's little enough left that the conceptual steps are clear
     * Consider making a sequence diagram based on my understanding
@@ -38,7 +39,7 @@ These are quick reference notes on how to build for the purposes of dissection.
 
 `create_package.sh` makes a zip in `pkgbin/SteamDeckGyroDSU.zip`
 
-If building elsewhere, one way to get it over to the steam deck is to run an HTTP server in tat directory on the local network
+If building elsewhere, one way to get it over to the steam deck is to run an HTTP server in that directory on the local network
 But currently that version doesn't work, so instead you can build it with `create_package.sh`, then run the `install.sh` script in pkgbin/SteamDeckGyroDSU
 
 ----
