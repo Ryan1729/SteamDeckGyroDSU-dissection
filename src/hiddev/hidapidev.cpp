@@ -6,24 +6,6 @@
 #include <thread>
 #include <cstring> // for memset
 
-int hid_read_timeout_dummy(unsigned char* data, size_t length, int milliseconds)
-{
-    // Simulate blocking for the requested timeout
-    if (milliseconds > 0) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(milliseconds));
-    }
-
-    // Fill the buffer with predictable dummy data
-    static unsigned char counter = 0;
-    for (size_t i = 0; i < length; ++i) {
-        data[i] = static_cast<unsigned char>(counter + i);
-    }
-    counter++;
-
-    // Return "success" with full length read
-    return static_cast<int>(length);
-}
-
 namespace kmicki::hiddev
 {
     int HidApiDev::hidApiInitialized = 0;
@@ -91,22 +73,7 @@ namespace kmicki::hiddev
 
     int HidApiDev::Read(std::vector<char> & data)
     {
-        if(dev == nullptr)
-            return 0;
-
-        int readCnt = 0;
-
-        do {
-            auto readCntLoc = hid_read_timeout_dummy((unsigned char*)(data.data()+readCnt),data.size()-readCnt,timeout);
-            if(readCntLoc < 0)
-                return readCntLoc;
-            if(readCntLoc == 0)
-                return (readCnt==0)?-1:readCnt;
-            readCnt += readCntLoc;
-        }
-        while(readCnt < data.size());
-
-        return readCnt;
+        return 0;
     }
 
     bool HidApiDev::Write(std::vector<char> & data)

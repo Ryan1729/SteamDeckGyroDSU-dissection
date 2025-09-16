@@ -5,6 +5,24 @@
 
 using namespace kmicki::log;
 
+int hid_read_timeout_dummy(unsigned char* data, size_t length, int milliseconds)
+{
+    // Simulate blocking for the requested timeout
+    if (milliseconds > 0) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(milliseconds));
+    }
+
+    // Fill the buffer with predictable dummy data
+    static unsigned char counter = 0;
+    for (size_t i = 0; i < length; ++i) {
+        data[i] = static_cast<unsigned char>(counter + i);
+    }
+    counter++;
+
+    // Return "success" with full length read
+    return static_cast<int>(length);
+}
+
 namespace kmicki::hiddev
 {
     static const int cApiScanTimeToTimeout = 2;
@@ -21,12 +39,6 @@ namespace kmicki::hiddev
  
     void HidDevReader::ReadDataApi::Execute()
     {
-        HidApiDev dev(vId,pId,interfaceNumber,timeout);
-        
-        Log("HidDevReader::ReadDataApi: Opening HID device.",LogLevelDebug);
-        if(!dev.Open())
-            throw std::runtime_error("HidDevReader::ReadDataApi: Problem opening HID device.");
-
         auto const& data = Data.GetPointerToFill();
 
         Log("HidDevReader::ReadDataApi: Started.",LogLevelDebug);
@@ -38,33 +50,25 @@ namespace kmicki::hiddev
 
             if(noGyro && noGyro->TrySignal())
             {
-                Log("HidDevReader::ReadDataApi: Try reenabling gyro.",LogLevelTrace);
-                if(dev.EnableGyro())
-                    Log("HidDevReader::ReadDataApi: Gyro reenabled.",LogLevelDebug);
-                else
-                    Log("HidDevReader::ReadDataApi: Gyro reenaling failed.");
                 continue;
             }
 
-            auto readCnt = dev.Read(*data);
+            int readCnt = 0;
 
-            if(readCnt < data->size())
-            {
-                { LogF(LogLevelTrace) << "HidDevReader::ReadDataApi: Not enough bytes read: " << readCnt << "."; }
-                continue;
-            }
+            std::vector<char> & readData = *data;
 
-            if(readCnt == 0)
-            {
-                Log("HidDevReader::ReadDataApi: Waiting for data timed out.",LogLevelTrace);
-                continue;
+            do {
+                auto readCntLoc = hid_read_timeout_dummy((unsigned char*)(readData.data()+readCnt),readData.size()-readCnt,timeout);
+                if(readCntLoc < 0)
+                    break;
+                if(readCntLoc == 0)
+                    break;
+                readCnt += readCntLoc;
             }
+            while(readCnt < readData.size());
 
             Data.SendData();
         }
-    
-        Log("HidDevReader::ReadDataApi: Closing HID device.",LogLevelDebug);
-        dev.Close();
         
         Log("HidDevReader::ReadDataApi: Stopped.",LogLevelDebug);
     }
