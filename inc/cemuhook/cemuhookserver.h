@@ -1,11 +1,15 @@
 #ifndef _KMICKI_CEMUHOOK_CEMUHOOKSERVER_H_
 #define _KMICKI_CEMUHOOK_CEMUHOOKSERVER_H_
 
-#include "sdgyrodsu/cemuhookadapter.h"
 #include "cemuhookprotocol.h"
 #include <thread>
 #include <netinet/in.h>
 #include <mutex>
+#include "sdgyrodsu/sdhidframe.h"
+#include "cemuhook/cemuhookprotocol.h"
+#include "hiddev/hiddevreader.h"
+#include "pipeline/serve.h"
+#include "pipeline/signalout.h"
 
 using namespace kmicki::cemuhook::protocol;
 
@@ -14,13 +18,21 @@ namespace kmicki::cemuhook
     class Server
     {
         public:
-        Server() = delete;
-
-        Server(sdgyrodsu::CemuhookAdapter & _motionSource);
+        Server();
 
         ~Server();
 
         private:
+
+        uint32_t lastInc;
+        
+        int toReplicate;
+        bool ignoreFirst;
+        hiddev::HidDevReader * reader;
+        
+        SignalOut NoGyro;
+        uint64_t lastTimestamp;
+        pipeline::Serve<hiddev::HidDevReader::frame_t> * frameServe;
 
         struct Client
         {
@@ -42,7 +54,6 @@ namespace kmicki::cemuhook
 
         int socketFd;
 
-        sdgyrodsu::CemuhookAdapter & motionSource;
         std::unique_ptr<std::thread> serverThread;
 
         void serverTask();
@@ -60,7 +71,6 @@ namespace kmicki::cemuhook
 
         std::pair<uint16_t , void const*> PrepareVersionAnswer(uint32_t const& id);
         std::pair<uint16_t , void const*> PrepareInfoAnswer(uint32_t const& id, uint8_t const& slot);
-        std::pair<uint16_t , void const*> PrepareDataAnswer(uint32_t const& d, uint32_t const& packet);
         std::pair<uint16_t , void const*> PrepareDataAnswerWithoutCrc(uint32_t const& d, uint32_t const& packet);
         void ModifyDataAnswerId(uint32_t const& id);
         void CalcCrcDataAnswer();

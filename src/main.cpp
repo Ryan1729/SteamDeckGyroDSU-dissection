@@ -2,7 +2,6 @@
 #include "sdgyrodsu/sdhidframe.h"
 #include "cemuhook/cemuhookprotocol.h"
 #include "cemuhook/cemuhookserver.h"
-#include "sdgyrodsu/cemuhookadapter.h"
 #include "log/log.h"
 #include <iostream>
 #include <future>
@@ -68,8 +67,8 @@ int main()
 
     { LogF() << "SteamDeckGyroDSU Version: " << cVersion; }
 
-    CemuhookAdapter adapter;
-    Server server(adapter);
+    // Start the server
+    Server server;
 
     {
         std::unique_lock lock(stopMutex);

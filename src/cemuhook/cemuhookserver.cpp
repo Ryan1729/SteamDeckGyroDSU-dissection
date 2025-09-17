@@ -1,6 +1,12 @@
 #include "cemuhook/cemuhookserver.h"
 #include "log/log.h"
 
+#include "sdgyrodsu/sdhidframe.h"
+#include "cemuhook/cemuhookprotocol.h"
+#include "hiddev/hiddevreader.h"
+#include "pipeline/serve.h"
+#include "pipeline/signalout.h"
+
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <arpa/inet.h>
@@ -9,7 +15,12 @@
 #include <iostream>
 #include <algorithm>
 
+#include <iostream>
+#include <iomanip>
+#include <cmath>
+
 using namespace kmicki::sdgyrodsu;
+using namespace kmicki::cemuhook::protocol;
 using namespace kmicki::log;
 
 #define PORT 26760
@@ -22,8 +33,34 @@ using namespace kmicki::log;
 #define INFO_TYPE 0x100001
 #define DATA_TYPE 0x100002
 
+#define SD_SCANTIME_US 4000
+#define ACC_1G 0x4000
+#define GYRO_1DEGPERSEC 16
+#define GYRO_DEADZONE 8
+#define ACCEL_SMOOTH 0x1FF
+
 namespace kmicki::cemuhook
 {
+    MotionData & SetTimestamp(MotionData &data, uint64_t const& timestamp)
+    {
+        data.timestampL = (uint32_t)(timestamp & 0xFFFFFFFF);
+        data.timestampH = (uint32_t)(timestamp >> 32);
+
+        return data;
+    }
+
+    uint64_t ToTimestamp(uint32_t const& increment)
+    {
+        return (uint64_t)increment*SD_SCANTIME_US;
+    }
+
+    MotionData &  SetTimestamp(MotionData &data, uint32_t const& increment)
+    {
+        SetTimestamp(data,ToTimestamp(increment));
+
+        return data;
+    }
+    
     const char * GetIP(sockaddr_in const& addr, char *buf)
     {
         return inet_ntop(addr.sin_family,&(addr.sin_addr.s_addr),buf,INET6_ADDRSTRLEN);
@@ -42,9 +79,16 @@ namespace kmicki::cemuhook
         return ~crc;
     }
 
-    Server::Server(CemuhookAdapter & _motionSource)
-        : motionSource(_motionSource), stop(false), serverThread(), stopSending(false),
-          mainMutex(), stopSendMutex(), socketSendMutex(), checkTimeout(false)
+    const int cFrameLen = 64;       // Steam Deck Controls' custom HID report length in bytes
+    const int cScanTimeUs = 4000;   // Steam Deck Controls' period between received report data in microseconds
+    const uint16_t cVID = 0x28de;   // Steam Deck Controls' USB Vendor-ID
+    const uint16_t cPID = 0x1205;   // Steam Deck Controls' USB Product-ID
+    const int cInterfaceNumber = 2; // Steam Deck Controls' USB Interface Number
+
+    Server::Server()
+        : toReplicate(0), lastInc(0), stop(false), serverThread(), stopSending(false),
+          mainMutex(), stopSendMutex(), socketSendMutex(), checkTimeout(false),
+          reader(new kmicki::hiddev::HidDevReader(cVID,cPID,cInterfaceNumber,cFrameLen,cScanTimeUs))
     {
         PrepareAnswerConstants();
         Start();
@@ -334,7 +378,22 @@ namespace kmicki::cemuhook
         static const uint32_t cTimeoutIncreasePeriod = 500;
 
         Log("Server: Initiating frame grab start.",LogLevelDebug);
-        motionSource.StartFrameGrab();
+        lastInc = 0;
+        ignoreFirst = true;
+        Log("CemuhookAdapter: Starting frame grab.",LogLevelDebug);
+
+        {
+            std::lock_guard startLock(reader->startStopMutex); // prevent starting and stopping at the same time
+
+            Log("HidDevReader: Attempting to start the pipeline...",LogLevelDebug);
+
+            for (auto& thread : reader->pipeline)
+                thread->Start();
+        }
+
+        Log("HidDevReader: Started the pipeline.");
+
+        frameServe = &reader->serve->GetServe();
 
         std::pair<uint16_t , void const*> outBuf;
         uint32_t packet = 0;
@@ -346,7 +405,105 @@ namespace kmicki::cemuhook
         while(!stopSending)
         {
             mainLock.unlock();
-            outBuf = PrepareDataAnswerWithoutCrc(0,++packet);
+            
+            static const uint16_t len = sizeof(dataAnswer);
+            dataAnswer.header.id = 0;
+            dataAnswer.packetNumber = ++packet;
+            
+            static const int64_t cMaxDiffReplicate = 100;
+            static const int cMaxRepeatedLoop = 1000;
+
+            auto const& dataFrame = frameServe->GetPointer();
+
+            if(ignoreFirst)
+            {
+                auto lock = frameServe->GetConsumeLock();
+                ignoreFirst = false;
+            }
+
+            int repeatedLoop = cMaxRepeatedLoop;
+
+            while(true)
+            {
+                if(toReplicate == 0)
+                {
+                    //Log("DEBUG: TRY GET CONSUME LOCK.");
+                    auto lock = frameServe->GetConsumeLock();
+                    //Log("CONSUME LOCK ACQUIRED.");
+                    auto const& frame = GetSdFrame(*dataFrame);
+
+                    if( frame.AccelAxisFrontToBack == 0 && frame.AccelAxisRightToLeft == 0
+                        &&  frame.AccelAxisTopToBottom == 0 && frame.GyroAxisFrontToBack == 0
+                        &&  frame.GyroAxisRightToLeft == 0 && frame.GyroAxisTopToBottom == 0)
+                    {
+                        NoGyro.SendSignal();
+                    }
+
+                    int64_t diff = (int64_t)frame.Increment - (int64_t)lastInc;
+
+                    if(lastInc != 0 && diff < 1 && diff > -100)
+                    {
+                        if(repeatedLoop == cMaxRepeatedLoop)
+                        {
+                            Log("CemuhookAdapter: Frame was repeated. Ignoring...",LogLevelDebug);
+                            { LogF(LogLevelTrace) << std::setw(8) << std::setfill('0') << std::setbase(16)
+                                            << "Current increment: 0x" << frame.Increment << ". Last: 0x" << lastInc << "."; }
+                        }
+                        if(repeatedLoop <= 0)
+                        {
+                            Log("CemuhookAdapter: Frame is repeated continously...");
+                            break;
+                        }
+                        --repeatedLoop;
+                    }
+                    else
+                    {
+                        if(lastInc != 0 && diff > 1 && diff <= cMaxDiffReplicate) {
+                            toReplicate = diff-1;
+                        }
+
+                        // Set the MotionData to dummy values {
+                        SetTimestamp(dataAnswer.motion, frame.Increment);
+
+                        float t = static_cast<float>(dataAnswer.motion.timestampL) / 1'000'000.0f;
+
+                        static const float scale = 45.0f;
+
+                        dataAnswer.motion.accX = std::sin(t) * scale;
+                        dataAnswer.motion.accY = std::cos(t) * scale;
+                        dataAnswer.motion.accZ = std::sin(t + 0.5) * scale;
+
+                        static const float g = 9.81f;
+
+                        dataAnswer.motion.pitch = g * std::sin(t);
+                        dataAnswer.motion.yaw = g * std::cos(t);
+                        dataAnswer.motion.roll = 0.0f;
+                        // }
+
+                        if(toReplicate > 0)
+                        {
+                            lastTimestamp = ToTimestamp(lastInc+1);
+                            SetTimestamp(dataAnswer.motion,lastTimestamp);
+                        }
+
+                        lastInc = frame.Increment;
+
+                        break;
+                    }
+                }
+                else
+                {
+                    // Replicated frame
+                    --toReplicate;
+                    lastTimestamp += SD_SCANTIME_US;
+                    SetTimestamp(dataAnswer.motion,lastTimestamp);
+
+                    break;
+                }
+            }
+            
+            outBuf = std::pair<uint16_t , void const*>(len, reinterpret_cast<void *>(&dataAnswer));
+            
             {
                 std::shared_lock lock(clientsMutex);
                 for(auto& client : clients)
@@ -373,7 +530,22 @@ namespace kmicki::cemuhook
 
         Log("Server: Initiating frame grab stop.",LogLevelDebug);
 
-        motionSource.StopFrameGrab();
+        Log("CemuhookAdapter: Stopping frame grab.",LogLevelDebug);
+
+        reader->serve->StopServe(*frameServe);
+        frameServe = nullptr;
+
+        {
+            std::lock_guard startLock(reader->startStopMutex); // prevent starting and stopping at the same time
+
+            Log("HidDevReader: Attempting to stop the pipeline...",LogLevelDebug);
+
+            for (auto thread = reader->pipeline.rbegin(); thread != reader->pipeline.rend(); ++thread)
+                (*thread)->TryStopThenKill(std::chrono::seconds(10));
+                
+        }
+
+        Log("HidDevReader: Stopped the pipeline.");
         Log("Server: Stop sending controller data.",LogLevelDebug);
     }
 
@@ -403,30 +575,10 @@ namespace kmicki::cemuhook
         
         infoDeckAnswer.header.id = id;
         infoDeckAnswer.response.slot = slot;
-        infoDeckAnswer.response.slotState = motionSource.IsControllerConnected()?2:0;
+        infoDeckAnswer.response.slotState = 2; // The controller is connected
         infoDeckAnswer.header.crc32 = 0;
         infoDeckAnswer.header.crc32 = crc32(reinterpret_cast<unsigned char *>(&infoDeckAnswer),len);
         return std::pair<uint16_t , void const*>(len, reinterpret_cast<void *>(&infoDeckAnswer));
-    }
-
-    std::pair<uint16_t , void const*> Server::PrepareDataAnswer(uint32_t const& id, uint32_t const& packet) 
-    {
-        static const uint16_t len = sizeof(dataAnswer);
-
-        PrepareDataAnswerWithoutCrc(id,packet);
-        CalcCrcDataAnswer();
-        return std::pair<uint16_t , void const*>(len, reinterpret_cast<void *>(&dataAnswer));
-    }
-
-    std::pair<uint16_t , void const*> Server::PrepareDataAnswerWithoutCrc(uint32_t const& id, uint32_t const& packet) 
-    {
-        static const uint16_t len = sizeof(dataAnswer);
-        
-        dataAnswer.header.id = id;
-        dataAnswer.packetNumber = packet;
-        motionSource.SetMotionDataNewFrame(dataAnswer.motion);
-        
-        return std::pair<uint16_t , void const*>(len, reinterpret_cast<void *>(&dataAnswer));
     }
 
     void Server::CalcCrcDataAnswer()
