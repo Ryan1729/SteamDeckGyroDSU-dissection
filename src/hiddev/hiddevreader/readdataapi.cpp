@@ -5,24 +5,6 @@
 
 using namespace kmicki::log;
 
-int hid_read_timeout_dummy(unsigned char* data, size_t length, int milliseconds)
-{
-    // Simulate blocking for the requested timeout
-    if (milliseconds > 0) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(milliseconds));
-    }
-
-    // Fill the buffer with predictable dummy data
-    static unsigned char counter = 0;
-    for (size_t i = 0; i < length; ++i) {
-        data[i] = static_cast<unsigned char>(counter + i);
-    }
-    counter++;
-
-    // Return "success" with full length read
-    return static_cast<int>(length);
-}
-
 namespace kmicki::hiddev
 {
     static const int cApiScanTimeToTimeout = 2;
@@ -58,12 +40,22 @@ namespace kmicki::hiddev
             std::vector<char> & readData = *data;
 
             do {
-                auto readCntLoc = hid_read_timeout_dummy((unsigned char*)(readData.data()+readCnt),readData.size()-readCnt,timeout);
-                if(readCntLoc < 0)
-                    break;
-                if(readCntLoc == 0)
-                    break;
-                readCnt += readCntLoc;
+                // Simulate blocking for the requested timeout
+                if (timeout > 0) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(timeout));
+                }
+                
+                // data ptr
+                unsigned char* d = (unsigned char*)(readData.data()+readCnt);
+                size_t length = readData.size()-readCnt;
+                
+                static unsigned char counter = 0;
+                for (size_t i = 0; i < length; ++i) {
+                    d[i] = static_cast<unsigned char>(counter + i);
+                }
+                counter++;
+                
+                readCnt += static_cast<int>(length);
             }
             while(readCnt < readData.size());
 
