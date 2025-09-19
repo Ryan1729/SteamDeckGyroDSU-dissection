@@ -1,10 +1,7 @@
 #include "cemuhook/cemuhookserver.h"
 #include "log/log.h"
 
-#include "sdgyrodsu/sdhidframe.h"
 #include "cemuhook/cemuhookprotocol.h"
-#include "pipeline/serve.h"
-#include "pipeline/signalout.h"
 
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -18,7 +15,6 @@
 #include <iomanip>
 #include <cmath>
 
-using namespace kmicki::sdgyrodsu;
 using namespace kmicki::cemuhook::protocol;
 using namespace kmicki::log;
 
@@ -392,7 +388,7 @@ namespace kmicki::cemuhook
             
             {
                 std::shared_lock lock(clientsMutex);
-                for(auto& client : clients)
+                for(auto const& client : clients)
                 {
                     dataAnswer.header.id = client.id;
                     CalcCrcDataAnswer();

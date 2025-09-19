@@ -1,4 +1,3 @@
-#include "sdgyrodsu/sdhidframe.h"
 #include "cemuhook/cemuhookprotocol.h"
 #include "cemuhook/cemuhookserver.h"
 #include "log/log.h"
@@ -7,7 +6,6 @@
 #include <thread>
 #include <csignal>
 
-using namespace kmicki::sdgyrodsu;
 using namespace kmicki::log;
 using namespace kmicki::cemuhook::protocol;
 using namespace kmicki::cemuhook;

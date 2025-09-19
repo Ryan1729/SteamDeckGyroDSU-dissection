@@ -5,12 +5,9 @@
 #include <thread>
 #include <netinet/in.h>
 #include <mutex>
-#include "sdgyrodsu/sdhidframe.h"
 #include "cemuhook/cemuhookprotocol.h"
 #include <vector>
 #include <shared_mutex>
-#include "pipeline/serve.h"
-#include "pipeline/signalout.h"
 
 using namespace kmicki::cemuhook::protocol;
 

@@ -10,11 +10,6 @@ namespace kmicki::log
     {
         currentLogType = type;
     }
-    
-    LogLevel const& GetLogLevel()
-    {
-        return currentLogType;
-    }
 
     void Log(std::string message,LogLevel type)
     {

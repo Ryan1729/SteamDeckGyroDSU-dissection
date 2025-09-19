@@ -18,8 +18,6 @@ namespace kmicki::log
 
     void SetLogLevel(LogLevel type);
 
-    LogLevel const& GetLogLevel();
-
     // Log a string message
     void Log(std::string message,LogLevel type = LogLevelDefault);
 
