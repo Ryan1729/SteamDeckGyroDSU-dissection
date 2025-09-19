@@ -40,19 +40,6 @@ using namespace kmicki::log;
 
 namespace kmicki::cemuhook
 {
-    MotionData & SetTimestamp(MotionData &data, uint64_t const& timestamp)
-    {
-        data.timestampL = (uint32_t)(timestamp & 0xFFFFFFFF);
-        data.timestampH = (uint32_t)(timestamp >> 32);
-
-        return data;
-    }
-
-    uint64_t ToTimestamp(uint32_t const& increment)
-    {
-        return (uint64_t)increment*SD_SCANTIME_US;
-    }
-    
     const char * GetIP(sockaddr_in const& addr, char *buf)
     {
         return inet_ntop(addr.sin_family,&(addr.sin_addr.s_addr),buf,INET6_ADDRSTRLEN);
@@ -381,10 +368,10 @@ namespace kmicki::cemuhook
             dataAnswer.header.id = 0;
             dataAnswer.packetNumber = ++packet;
             
-            frameIncrement += 1;
+            frameIncrement += 400;
             
             // Set the MotionData to dummy values {
-            SetTimestamp(dataAnswer.motion, frameIncrement);
+            dataAnswer.motion.timestampL = frameIncrement;
 
             float t = static_cast<float>(dataAnswer.motion.timestampL) / 1'000'000.0f;
 
