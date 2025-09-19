@@ -78,12 +78,6 @@ namespace kmicki::cemuhook
         return ~crc;
     }
 
-    const int cFrameLen = 64;       // Steam Deck Controls' custom HID report length in bytes
-    const int cScanTimeUs = 4000;   // Steam Deck Controls' period between received report data in microseconds
-    const uint16_t cVID = 0x28de;   // Steam Deck Controls' USB Vendor-ID
-    const uint16_t cPID = 0x1205;   // Steam Deck Controls' USB Product-ID
-    const int cInterfaceNumber = 2; // Steam Deck Controls' USB Interface Number
-
     Server::Server()
         : toReplicate(0), lastInc(0), stop(false), serverThread(), stopSending(false),
           mainMutex(), stopSendMutex(), socketSendMutex(), checkTimeout(false)
@@ -210,7 +204,7 @@ namespace kmicki::cemuhook
 
     void Server::CheckClientTimeout(std::unique_ptr<std::thread> & sendThread, bool increment)
     {
-        static const int cSendTimeout = 3;
+        static const int cSendTimeout = 300; // What unit is this effectively? Just calls to this method?
 
         char ipStr[INET6_ADDRSTRLEN];
         ipStr[0] = 0;
@@ -394,9 +388,7 @@ namespace kmicki::cemuhook
             dataAnswer.packetNumber = ++packet;
             
             static const int64_t cMaxDiffReplicate = 100;
-            static const int cMaxRepeatedLoop = 1000;
 
-            int repeatedLoop = cMaxRepeatedLoop;
 
             uint32_t frameIncrement = 0;
 
@@ -404,66 +396,31 @@ namespace kmicki::cemuhook
             {
                 frameIncrement += 1;
                 
-                if(toReplicate == 0)
+                int64_t diff = (int64_t)frameIncrement - (int64_t)lastInc;
+                
+                { LogF() << "!(lastInc != 0 && diff < 1 && diff > -100): " << !(lastInc != 0 && diff < 1 && diff > -100) << "."; }
+
+                if(!(lastInc != 0 && diff < 1 && diff > -100))
                 {
-                    int64_t diff = (int64_t)frameIncrement - (int64_t)lastInc;
+                    // Set the MotionData to dummy values {
+                    SetTimestamp(dataAnswer.motion, frameIncrement);
 
-                    if(lastInc != 0 && diff < 1 && diff > -100)
-                    {
-                        if(repeatedLoop == cMaxRepeatedLoop)
-                        {
-                            Log("CemuhookAdapter: Frame was repeated. Ignoring...",LogLevelDebug);
-                            { LogF(LogLevelTrace) << std::setw(8) << std::setfill('0') << std::setbase(16)
-                                            << "Current increment: 0x" << frameIncrement << ". Last: 0x" << lastInc << "."; }
-                        }
-                        if(repeatedLoop <= 0)
-                        {
-                            Log("CemuhookAdapter: Frame is repeated continously...");
-                            break;
-                        }
-                        --repeatedLoop;
-                    }
-                    else
-                    {
-                        if(lastInc != 0 && diff > 1 && diff <= cMaxDiffReplicate) {
-                            toReplicate = diff-1;
-                        }
+                    float t = static_cast<float>(dataAnswer.motion.timestampL) / 1'000'000.0f;
 
-                        // Set the MotionData to dummy values {
-                        SetTimestamp(dataAnswer.motion, frameIncrement);
+                    static const float scale = 45.0f;
 
-                        float t = static_cast<float>(dataAnswer.motion.timestampL) / 1'000'000.0f;
+                    dataAnswer.motion.accX = std::sin(t) * scale;
+                    dataAnswer.motion.accY = std::cos(t) * scale;
+                    dataAnswer.motion.accZ = std::sin(t + 0.5) * scale;
 
-                        static const float scale = 45.0f;
+                    static const float g = 9.81f;
 
-                        dataAnswer.motion.accX = std::sin(t) * scale;
-                        dataAnswer.motion.accY = std::cos(t) * scale;
-                        dataAnswer.motion.accZ = std::sin(t + 0.5) * scale;
+                    dataAnswer.motion.pitch = g * std::sin(t);
+                    dataAnswer.motion.yaw = g * std::cos(t);
+                    dataAnswer.motion.roll = 0.0f;
+                    // }
 
-                        static const float g = 9.81f;
-
-                        dataAnswer.motion.pitch = g * std::sin(t);
-                        dataAnswer.motion.yaw = g * std::cos(t);
-                        dataAnswer.motion.roll = 0.0f;
-                        // }
-
-                        if(toReplicate > 0)
-                        {
-                            lastTimestamp = ToTimestamp(lastInc+1);
-                            SetTimestamp(dataAnswer.motion,lastTimestamp);
-                        }
-
-                        lastInc = frameIncrement;
-
-                        break;
-                    }
-                }
-                else
-                {
-                    // Replicated frame
-                    --toReplicate;
-                    lastTimestamp += SD_SCANTIME_US;
-                    SetTimestamp(dataAnswer.motion,lastTimestamp);
+                    lastInc = frameIncrement;
 
                     break;
                 }
