@@ -7,7 +7,8 @@
 #include <mutex>
 #include "sdgyrodsu/sdhidframe.h"
 #include "cemuhook/cemuhookprotocol.h"
-#include "hiddev/hiddevreader.h"
+#include <vector>
+#include <shared_mutex>
 #include "pipeline/serve.h"
 #include "pipeline/signalout.h"
 
@@ -28,11 +29,8 @@ namespace kmicki::cemuhook
         
         int toReplicate;
         bool ignoreFirst;
-        hiddev::HidDevReader * reader;
         
-        SignalOut NoGyro;
         uint64_t lastTimestamp;
-        pipeline::Serve<hiddev::HidDevReader::frame_t> * frameServe;
 
         struct Client
         {

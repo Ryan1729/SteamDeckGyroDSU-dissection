@@ -2,12 +2,9 @@
 #define _KMICKI_SDGYRODSU_SDHIDFRAME_H_
 
 #include <cstdint>
-#include "hiddev/hiddevreader.h"
 
 namespace kmicki::sdgyrodsu
 {
-    typedef kmicki::hiddev::HidDevReader::frame_t frame_t;
-
     struct SdHidFrame 
     {
         uint32_t Header;
@@ -76,9 +73,6 @@ namespace kmicki::sdgyrodsu
 
         
     };
-
-    SdHidFrame const& GetSdFrame(frame_t const& frame);
-
 }
 
 #endif

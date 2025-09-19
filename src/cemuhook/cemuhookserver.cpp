@@ -3,7 +3,6 @@
 
 #include "sdgyrodsu/sdhidframe.h"
 #include "cemuhook/cemuhookprotocol.h"
-#include "hiddev/hiddevreader.h"
 #include "pipeline/serve.h"
 #include "pipeline/signalout.h"
 
@@ -87,8 +86,7 @@ namespace kmicki::cemuhook
 
     Server::Server()
         : toReplicate(0), lastInc(0), stop(false), serverThread(), stopSending(false),
-          mainMutex(), stopSendMutex(), socketSendMutex(), checkTimeout(false),
-          reader(new kmicki::hiddev::HidDevReader(cVID,cPID,cInterfaceNumber,cFrameLen,cScanTimeUs))
+          mainMutex(), stopSendMutex(), socketSendMutex(), checkTimeout(false)
     {
         PrepareAnswerConstants();
         Start();
@@ -379,21 +377,6 @@ namespace kmicki::cemuhook
 
         Log("Server: Initiating frame grab start.",LogLevelDebug);
         lastInc = 0;
-        ignoreFirst = true;
-        Log("CemuhookAdapter: Starting frame grab.",LogLevelDebug);
-
-        {
-            std::lock_guard startLock(reader->startStopMutex); // prevent starting and stopping at the same time
-
-            Log("HidDevReader: Attempting to start the pipeline...",LogLevelDebug);
-
-            for (auto& thread : reader->pipeline)
-                thread->Start();
-        }
-
-        Log("HidDevReader: Started the pipeline.");
-
-        frameServe = &reader->serve->GetServe();
 
         std::pair<uint16_t , void const*> outBuf;
         uint32_t packet = 0;
@@ -413,33 +396,17 @@ namespace kmicki::cemuhook
             static const int64_t cMaxDiffReplicate = 100;
             static const int cMaxRepeatedLoop = 1000;
 
-            auto const& dataFrame = frameServe->GetPointer();
-
-            if(ignoreFirst)
-            {
-                auto lock = frameServe->GetConsumeLock();
-                ignoreFirst = false;
-            }
-
             int repeatedLoop = cMaxRepeatedLoop;
+
+            uint32_t frameIncrement = 0;
 
             while(true)
             {
+                frameIncrement += 1;
+                
                 if(toReplicate == 0)
                 {
-                    //Log("DEBUG: TRY GET CONSUME LOCK.");
-                    auto lock = frameServe->GetConsumeLock();
-                    //Log("CONSUME LOCK ACQUIRED.");
-                    auto const& frame = GetSdFrame(*dataFrame);
-
-                    if( frame.AccelAxisFrontToBack == 0 && frame.AccelAxisRightToLeft == 0
-                        &&  frame.AccelAxisTopToBottom == 0 && frame.GyroAxisFrontToBack == 0
-                        &&  frame.GyroAxisRightToLeft == 0 && frame.GyroAxisTopToBottom == 0)
-                    {
-                        NoGyro.SendSignal();
-                    }
-
-                    int64_t diff = (int64_t)frame.Increment - (int64_t)lastInc;
+                    int64_t diff = (int64_t)frameIncrement - (int64_t)lastInc;
 
                     if(lastInc != 0 && diff < 1 && diff > -100)
                     {
@@ -447,7 +414,7 @@ namespace kmicki::cemuhook
                         {
                             Log("CemuhookAdapter: Frame was repeated. Ignoring...",LogLevelDebug);
                             { LogF(LogLevelTrace) << std::setw(8) << std::setfill('0') << std::setbase(16)
-                                            << "Current increment: 0x" << frame.Increment << ". Last: 0x" << lastInc << "."; }
+                                            << "Current increment: 0x" << frameIncrement << ". Last: 0x" << lastInc << "."; }
                         }
                         if(repeatedLoop <= 0)
                         {
@@ -463,7 +430,7 @@ namespace kmicki::cemuhook
                         }
 
                         // Set the MotionData to dummy values {
-                        SetTimestamp(dataAnswer.motion, frame.Increment);
+                        SetTimestamp(dataAnswer.motion, frameIncrement);
 
                         float t = static_cast<float>(dataAnswer.motion.timestampL) / 1'000'000.0f;
 
@@ -486,7 +453,7 @@ namespace kmicki::cemuhook
                             SetTimestamp(dataAnswer.motion,lastTimestamp);
                         }
 
-                        lastInc = frame.Increment;
+                        lastInc = frameIncrement;
 
                         break;
                     }
@@ -528,24 +495,6 @@ namespace kmicki::cemuhook
             mainLock.lock();
         }
 
-        Log("Server: Initiating frame grab stop.",LogLevelDebug);
-
-        Log("CemuhookAdapter: Stopping frame grab.",LogLevelDebug);
-
-        reader->serve->StopServe(*frameServe);
-        frameServe = nullptr;
-
-        {
-            std::lock_guard startLock(reader->startStopMutex); // prevent starting and stopping at the same time
-
-            Log("HidDevReader: Attempting to stop the pipeline...",LogLevelDebug);
-
-            for (auto thread = reader->pipeline.rbegin(); thread != reader->pipeline.rend(); ++thread)
-                (*thread)->TryStopThenKill(std::chrono::seconds(10));
-                
-        }
-
-        Log("HidDevReader: Stopped the pipeline.");
         Log("Server: Stop sending controller data.",LogLevelDebug);
     }
 

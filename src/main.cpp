@@ -1,4 +1,3 @@
-#include "hiddev/hiddevreader.h"
 #include "sdgyrodsu/sdhidframe.h"
 #include "cemuhook/cemuhookprotocol.h"
 #include "cemuhook/cemuhookserver.h"
@@ -9,7 +8,6 @@
 #include <csignal>
 
 using namespace kmicki::sdgyrodsu;
-using namespace kmicki::hiddev;
 using namespace kmicki::log;
 using namespace kmicki::cemuhook::protocol;
 using namespace kmicki::cemuhook;
