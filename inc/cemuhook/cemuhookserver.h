@@ -25,8 +25,6 @@ namespace kmicki::cemuhook
 
         private:
 
-        uint32_t lastInc;
-        
         int toReplicate;
         bool ignoreFirst;
         

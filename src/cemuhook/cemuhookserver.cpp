@@ -52,13 +52,6 @@ namespace kmicki::cemuhook
     {
         return (uint64_t)increment*SD_SCANTIME_US;
     }
-
-    MotionData &  SetTimestamp(MotionData &data, uint32_t const& increment)
-    {
-        SetTimestamp(data,ToTimestamp(increment));
-
-        return data;
-    }
     
     const char * GetIP(sockaddr_in const& addr, char *buf)
     {
@@ -79,7 +72,7 @@ namespace kmicki::cemuhook
     }
 
     Server::Server()
-        : toReplicate(0), lastInc(0), stop(false), serverThread(), stopSending(false),
+        : toReplicate(0), stop(false), serverThread(), stopSending(false),
           mainMutex(), stopSendMutex(), socketSendMutex(), checkTimeout(false)
     {
         PrepareAnswerConstants();
@@ -370,7 +363,6 @@ namespace kmicki::cemuhook
         static const uint32_t cTimeoutIncreasePeriod = 500;
 
         Log("Server: Initiating frame grab start.",LogLevelDebug);
-        lastInc = 0;
 
         std::pair<uint16_t , void const*> outBuf;
         uint32_t packet = 0;
@@ -378,6 +370,8 @@ namespace kmicki::cemuhook
         Log("Server: Start sending controller data.",LogLevelDebug);
 
         std::unique_lock mainLock(stopSendMutex);
+
+        uint32_t frameIncrement = 0;
 
         while(!stopSending)
         {
@@ -387,44 +381,25 @@ namespace kmicki::cemuhook
             dataAnswer.header.id = 0;
             dataAnswer.packetNumber = ++packet;
             
-            static const int64_t cMaxDiffReplicate = 100;
+            frameIncrement += 1;
+            
+            // Set the MotionData to dummy values {
+            SetTimestamp(dataAnswer.motion, frameIncrement);
 
+            float t = static_cast<float>(dataAnswer.motion.timestampL) / 1'000'000.0f;
 
-            uint32_t frameIncrement = 0;
+            static const float scale = 45.0f;
 
-            while(true)
-            {
-                frameIncrement += 1;
-                
-                int64_t diff = (int64_t)frameIncrement - (int64_t)lastInc;
-                
-                { LogF() << "!(lastInc != 0 && diff < 1 && diff > -100): " << !(lastInc != 0 && diff < 1 && diff > -100) << "."; }
+            dataAnswer.motion.accX = std::sin(t) * scale;
+            dataAnswer.motion.accY = std::cos(t) * scale;
+            dataAnswer.motion.accZ = std::sin(t + 0.5) * scale;
 
-                if(!(lastInc != 0 && diff < 1 && diff > -100))
-                {
-                    // Set the MotionData to dummy values {
-                    SetTimestamp(dataAnswer.motion, frameIncrement);
+            static const float g = 9.81f;
 
-                    float t = static_cast<float>(dataAnswer.motion.timestampL) / 1'000'000.0f;
-
-                    static const float scale = 45.0f;
-
-                    dataAnswer.motion.accX = std::sin(t) * scale;
-                    dataAnswer.motion.accY = std::cos(t) * scale;
-                    dataAnswer.motion.accZ = std::sin(t + 0.5) * scale;
-
-                    static const float g = 9.81f;
-
-                    dataAnswer.motion.pitch = g * std::sin(t);
-                    dataAnswer.motion.yaw = g * std::cos(t);
-                    dataAnswer.motion.roll = 0.0f;
-                    // }
-
-                    lastInc = frameIncrement;
-
-                    break;
-                }
-            }
+            dataAnswer.motion.pitch = g * std::sin(t);
+            dataAnswer.motion.yaw = g * std::cos(t);
+            dataAnswer.motion.roll = 0.0f;
+            // }            
             
             outBuf = std::pair<uint16_t , void const*>(len, reinterpret_cast<void *>(&dataAnswer));
             
