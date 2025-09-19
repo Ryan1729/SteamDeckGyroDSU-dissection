@@ -394,7 +394,8 @@ namespace kmicki::cemuhook
                 std::shared_lock lock(clientsMutex);
                 for(auto& client : clients)
                 {
-                    ModifyDataAnswerId(client.id);
+                    dataAnswer.header.id = client.id;
+                    CalcCrcDataAnswer();
                     {
                         std::lock_guard lock2(socketSendMutex);
                         SendPacket(socketFd,outBuf,client.address);
@@ -455,12 +456,6 @@ namespace kmicki::cemuhook
 
         dataAnswer.header.crc32 = 0;
         dataAnswer.header.crc32 = crc32(reinterpret_cast<unsigned char *>(&dataAnswer),len);
-    }
-
-    void Server::ModifyDataAnswerId(uint32_t const& id) 
-    {
-        dataAnswer.header.id = id;
-        CalcCrcDataAnswer();
     }
 
     bool Server::Client::operator==(sockaddr_in const& other)
