@@ -10,7 +10,7 @@ using namespace kmicki::log;
 using namespace kmicki::cemuhook::protocol;
 using namespace kmicki::cemuhook;
 
-const LogLevel cLogLevel = LogLevelDebug; // change to Default when configuration is possible
+const LogLevel cLogLevel = LogLevelTrace;//LogLevelDebug; // change to Default when configuration is possible
 
 const std::string cVersion = "2.1";   // Release version
 

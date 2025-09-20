@@ -21,9 +21,6 @@ namespace kmicki::cemuhook
         ~Server();
 
         private:
-
-        int toReplicate;
-        bool ignoreFirst;
         
         uint64_t lastTimestamp;
 

@@ -55,7 +55,7 @@ namespace kmicki::cemuhook
     }
 
     Server::Server()
-        : toReplicate(0), stop(false), serverThread(), stopSending(false),
+        : stop(false), serverThread(), stopSending(false),
           mainMutex(), stopSendMutex(), socketSendMutex(), checkTimeout(false)
     {
         PrepareAnswerConstants();
@@ -104,11 +104,7 @@ namespace kmicki::cemuhook
         sockInServer = sockaddr_in();
 
         sockInServer.sin_family = AF_INET;
-        if (const char* customPort = std::getenv("SDGYRO_SERVER_PORT")) {
-          sockInServer.sin_port = htons(std::atoi(customPort));
-        } else {
-          sockInServer.sin_port = htons(PORT);
-        }
+        sockInServer.sin_port = htons(PORT);
         sockInServer.sin_addr.s_addr = INADDR_ANY;
 
         if(bind(socketFd, (sockaddr*)&sockInServer, sizeof(sockInServer)) < 0)
@@ -224,7 +220,6 @@ namespace kmicki::cemuhook
 
     void Server::serverTask()
     {
-
         char buf[BUFLEN];
         sockaddr_in sockInClient;
         socklen_t sockInLen = sizeof(sockInClient);
@@ -279,6 +274,7 @@ namespace kmicki::cemuhook
                         }
                         break;
                     case DATA_TYPE:
+                        { LogF(LogLevelTrace) << "Server: A client sent a DATA_TYPE request. " << addressText << "."; }
                         {                           
                             std::shared_lock sharedLock(clientsMutex);
                             auto client = std::find(clients.begin(),clients.end(),sockInClient);
