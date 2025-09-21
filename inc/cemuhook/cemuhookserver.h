@@ -28,7 +28,6 @@ namespace kmicki::cemuhook
         {
             sockaddr_in address;
             uint32_t id;
-            int sendTimeout;
 
             bool operator==(sockaddr_in const& other);
             bool operator!=(sockaddr_in const& other);
@@ -54,8 +53,6 @@ namespace kmicki::cemuhook
         InfoAnswer infoDeckAnswer;
         InfoAnswer infoNoneAnswer;
         DataEvent dataAnswer;
-
-        bool checkTimeout;
 
         void PrepareAnswerConstants();
 

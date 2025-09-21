@@ -56,7 +56,7 @@ namespace kmicki::cemuhook
 
     Server::Server()
         : stop(false), serverThread(), stopSending(false),
-          mainMutex(), stopSendMutex(), socketSendMutex(), checkTimeout(false)
+          mainMutex(), stopSendMutex(), socketSendMutex()
     {
         PrepareAnswerConstants();
         Start();
@@ -174,50 +174,6 @@ namespace kmicki::cemuhook
         return sendto(socketFd,outBuf.second,outBuf.first,0,reinterpret_cast<sockaddr*>(const_cast<sockaddr_in*>(&sockInClient)), sizeof(sockInClient));
     }
 
-    void Server::CheckClientTimeout(std::unique_ptr<std::thread> & sendThread, bool increment)
-    {
-        static const int cSendTimeout = 300; // What unit is this effectively? Just calls to this method?
-
-        char ipStr[INET6_ADDRSTRLEN];
-        ipStr[0] = 0;
-
-        {
-            std::lock_guard lock(clientsMutex);
-            checkTimeout = false;
-            auto client = clients.begin();
-            while(client != clients.end())
-            {
-                if(increment)
-                    ++client->sendTimeout;
-                if(client->sendTimeout > cSendTimeout)
-                {       
-                    { LogF() << "Server: No packet from client for some time. IP: " << GetIP(client->address,ipStr) << " Port: " << ntohs(client->address.sin_port); }
-
-                    client = clients.erase(client);
-                }
-                else
-                {
-                    ++client;
-                }
-            }
-        }
-        {
-            std::shared_lock clientsLock(clientsMutex);
-            if(sendThread.get() != nullptr && clients.empty())
-            {
-                clientsLock.unlock();
-                Log("Server: No more clients. Stop sending data.");
-                {
-                    std::lock_guard lock(stopSendMutex);
-                    stopSending = true;
-                }
-                sendThread.get()->join();
-                sendThread.reset();
-            }
-        }
-
-    }
-
     void Server::serverTask()
     {
         char buf[BUFLEN];
@@ -239,7 +195,7 @@ namespace kmicki::cemuhook
         while(!stop)
         {
             mainLock.unlock();
-            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+
             auto recvLen = recvfrom(socketFd,buf,BUFLEN,0,(sockaddr*) &sockInClient, &sockInLen);
             if(recvLen >= headerSize)
             {                
@@ -287,7 +243,6 @@ namespace kmicki::cemuhook
                                     auto& newClient = clients.emplace_back();
                                     newClient.address = sockInClient;
                                     newClient.id = header.id;
-                                    newClient.sendTimeout = 0;
                                 }
                                 { LogF() << "Server: New client subscribed. " << addressText << "."; }
 
@@ -297,30 +252,9 @@ namespace kmicki::cemuhook
                                     sendThread.reset(new std::thread(&Server::sendTask,this));
                                 }
                             }
-                            else
-                            {
-                                // { LogF(LogLevelTrace) << "Server: Request for data from existing client. " << addressText << "."; }
-                                sharedLock.unlock();
-                                {
-                                    std::lock_guard lock(clientsMutex);
-                                    client->sendTimeout = 0;
-                                }
-                            }
                         }
                         break;
                 }
-                {
-                    std::shared_lock lock(clientsMutex);
-                    if(checkTimeout)
-                    {
-                        lock.unlock();
-                        CheckClientTimeout(sendThread,false);
-                    }
-                }
-            }
-            else 
-            {
-                CheckClientTimeout(sendThread,true);
             }
             mainLock.lock();
         }
@@ -394,16 +328,7 @@ namespace kmicki::cemuhook
                     }
                 }
             }
-            if(packet % cTimeoutIncreasePeriod == 0)
-            {
-                std::lock_guard lock(clientsMutex);
-                for(auto& client : clients)
-                {
-                    ++client.sendTimeout;
-                }
-                checkTimeout = true;
-            }
-            std::this_thread::sleep_for(std::chrono::microseconds(2));
+
             mainLock.lock();
         }
 
