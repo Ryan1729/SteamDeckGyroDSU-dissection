@@ -171,6 +171,7 @@ namespace kmicki::cemuhook
 
     ssize_t SendPacket(int const& socketFd, std::pair<uint16_t , void const*> const& outBuf, sockaddr_in const& sockInClient)
     {
+        // ssize_t sendto(int socket, const void *message, size_t length, int flags, const struct sockaddr *dest_addr, socklen_t dest_len);
         return sendto(socketFd,outBuf.second,outBuf.first,0,reinterpret_cast<sockaddr*>(const_cast<sockaddr_in*>(&sockInClient)), sizeof(sockInClient));
     }
 
@@ -356,6 +357,7 @@ namespace kmicki::cemuhook
             infoNoneAnswer.response.slot = slot;
             infoNoneAnswer.header.crc32 = 0;
             infoNoneAnswer.header.crc32 = crc32(reinterpret_cast<unsigned char *>(&infoNoneAnswer),len);
+            { LogF() << "CRC " << infoNoneAnswer.header.crc32 << "."; }
             return std::pair<uint16_t , void const*>(len, reinterpret_cast<void *>(&infoNoneAnswer));
         }
         
@@ -364,6 +366,7 @@ namespace kmicki::cemuhook
         infoDeckAnswer.response.slotState = 2; // The controller is connected
         infoDeckAnswer.header.crc32 = 0;
         infoDeckAnswer.header.crc32 = crc32(reinterpret_cast<unsigned char *>(&infoDeckAnswer),len);
+        { LogF() << "CRC " << infoDeckAnswer.header.crc32 << "."; }
         return std::pair<uint16_t , void const*>(len, reinterpret_cast<void *>(&infoDeckAnswer));
     }
 

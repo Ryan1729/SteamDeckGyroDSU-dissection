@@ -62,7 +62,7 @@ class DSUServer:
                     DATA = 0x100002
 
 
-                match event_type:
+                match EventType(event_type):
                     case EventType.VERSION:
                         # Apparently doesn't happen
                         pass
@@ -72,29 +72,47 @@ class DSUServer:
                         at = 24
                         for i in range(port_count):
                             (port_number,) = struct.unpack('<B', packed_data[at:at+1])
-                            outBuf = PrepareInfoAnswer(header.id, req.slots[i]);
 
                             packet = (
                                 b"DSUS",
                                 VERSION,
-                                0, # length TODO
+                                16, # length from event_type on
                                 0, # crc initial value
                                 id,
                                 event_type,
+                                #
+                                port_number,
+                                2 if i == 0 else 0, # 0 - not connected, 1 - reserved, 2 - connected
+                                2 if i == 0 else 0, # 0 - not applicable, 1 - no or partial gyro, 2 - full gyro, 3 - do not use
+                                1, # 0 - not applicable, 1 - USB, 2 - bluetooth
+                                0, # unused - 0
+                                0, # unused - 0
+                                0, # unused - 0
+                                0, # 1 - connected, for info - 0
                             )
-                            # TODO remaining fields
 
-                            packet[3] = calc_crc(packet)
+                            packet = packet[:3] + (
+                                calc_crc(
+                                    struct.pack(
+                                        "<4sHHIIIBBBBIHBB",
+                                        *packet
+                                    )
+                                )
+                            ,) + packet[4:]
+
+                            print("CRC: ", packet[3])
 
                             sock.sendto(
                                 struct.pack(
-                                    packet
+                                    "<4sHHIIIBBBBIHBB",
+                                    *packet
                                 ),
-                                (CLIENT_IP, CLIENT_PORT)
+                                addr
                             )
 
                             at += 1
-
+                    case _:
+                        print(f"Received unhandled event type {event_type}")
 
 
             child_conn.close()
