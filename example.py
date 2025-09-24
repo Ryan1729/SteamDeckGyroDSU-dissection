@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import multiprocessing as mp
 import time
 
@@ -8,6 +9,12 @@ CLIENT_PORT = 26760
 INCOMING_MAGIC = b"DSUC"
 OUTGOING_MAGIC = b"DSUS"
 VERSION = 1001
+
+@dataclass
+class Client:
+    addr: tuple[str, int]
+    id: int
+
 
 class DSUServer:
     def __init__(self):
@@ -30,12 +37,11 @@ class DSUServer:
             sock = socket.socket(socket.AF_INET,  # Internet
                                  socket.SOCK_DGRAM) # UDP
             sock.bind(((CLIENT_IP, CLIENT_PORT)))
-            for i in range(5):
-                [acc, gyro] = child_conn.recv()
-                ts = time.time_ns()
-                print(acc[0], acc[1], acc[2])
-                print(gyro[0], gyro[1], gyro[2])
-                print("ts", ts)
+            while True:
+                if child_conn.poll(0):
+                    should_stop = child_conn.recv()
+                    if should_stop:
+                        break
 
                 packed_data, addr = sock.recvfrom(1024) # buffer size is 1024 bytes
                 print(f"Received message: {len(packed_data)} {packed_data} from {addr}")
@@ -111,27 +117,66 @@ class DSUServer:
                             )
 
                             at += 1
+                    case EventType.DATA:
+                        client = Client(addr, id)
+
+                        if client not in self.clients:
+                            self.clients.append(client)
                     case _:
                         print(f"Received unhandled event type {event_type}")
 
 
             child_conn.close()
 
-        parent_conn, child_conn = mp.Pipe()
-        self.process = mp.Process(target=serve, args=(child_conn,))
-        self.process.start()
+        def controller_data(child_conn):
+            # TODO send the controller data to all connected clients
+            while True:
+                if child_conn.poll(0):
+                    [should_stop, acc, gyro] = child_conn.recv()
+                    if should_stop:
+                        break
 
-        self.parent_conn = parent_conn
+                time.sleep(0.2)
+
+            child_conn.close()
+
+        self.clients = []
+
+        to_serve_conn, into_serve_conn = mp.Pipe()
+
+        to_controller_data_conn, into_controller_data_conn = mp.Pipe()
+
+        self.serve_process = mp.Process(target=serve, args=(into_serve_conn,))
+        self.serve_process.start()
+
+        self.controller_data_process = mp.Process(target=controller_data, args=(into_controller_data_conn,))
+        self.controller_data_process.start()
+
+        self.to_serve_conn = to_serve_conn
+        self.to_controller_data_conn = to_controller_data_conn
+
 
     def update(self, acc, gyro):
-        self.parent_conn.send([
+        self.to_controller_data_conn.send([
+            False,
             [acc[0], acc[1], acc[2]],
-            [gyro[0], gyro[1], gyro[2]]
+            [gyro[0], gyro[1], gyro[2]],
         ])
 
     def close(self):
-        self.process.join()
-        self.process.close()
+        # Tell thread to shut down
+        self.to_serve_conn.send(True)
+        self.serve_process.join()
+        self.serve_process.close()
+
+        # Tell thread to shut down
+        self.to_controller_data_conn.send([
+            True,
+            [],
+            [],
+        ])
+        self.controller_data_process.join()
+        self.controller_data_process.close()
 
 
 def main():
