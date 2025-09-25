@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 import multiprocessing as mp
 import time
+from typing import Union
 
 # TODO? Make configurable?
 CLIENT_IP = "127.0.0.1"
@@ -15,9 +16,22 @@ class Client:
     addr: tuple[str, int]
     id: int
 
+@dataclass
+class AccAndGyro:
+    acc: [float, float, float]
+    gyro: [float, float, float]
+
+class Stop:
+    pass
+
+ControllerDataMsg = Union[Client, AccAndGyro, Stop]
+
 
 class DSUServer:
     def __init__(self):
+        import socket
+        import struct
+
         def calc_crc(packet):
             crc=0xFFFF_FFFF;
 
@@ -30,8 +44,6 @@ class DSUServer:
             return (~crc) & 0xFFFF_FFFF;
 
         def serve(child_conn):
-            import socket
-            import struct
             from enum import Enum
 
             sock = socket.socket(socket.AF_INET,  # Internet
@@ -77,7 +89,7 @@ class DSUServer:
 
                         at = 24
                         for i in range(port_count):
-                            (port_number,) = struct.unpack('<B', packed_data[at:at+1])
+                            (slot_number,) = struct.unpack('<B', packed_data[at:at+1])
 
                             packet = (
                                 b"DSUS",
@@ -87,7 +99,7 @@ class DSUServer:
                                 id,
                                 event_type,
                                 #
-                                port_number,
+                                slot_number,
                                 2 if i == 0 else 0, # 0 - not connected, 1 - reserved, 2 - connected
                                 2 if i == 0 else 0, # 0 - not applicable, 1 - no or partial gyro, 2 - full gyro, 3 - do not use
                                 1, # 0 - not applicable, 1 - USB, 2 - bluetooth
@@ -118,6 +130,7 @@ class DSUServer:
 
                             at += 1
                     case EventType.DATA:
+                        print(f"EventType.DATA {self.clients} {(addr, id)}")
                         client = Client(addr, id)
 
                         if client not in self.clients:
@@ -130,13 +143,65 @@ class DSUServer:
 
         def controller_data(child_conn):
             # TODO send the controller data to all connected clients
+            clients = []
+            acc = [0.0, 0.0, 0.0]
+            gyro = [0.0, 0.0, 0.0]
+
+            sock = socket.socket(socket.AF_INET,  # Internet
+                                 socket.SOCK_DGRAM) # UDP
+
             while True:
                 if child_conn.poll(0):
-                    [should_stop, acc, gyro] = child_conn.recv()
-                    if should_stop:
+                    msg = child_conn.recv()
+                    if isinstance(msg, Stop):
                         break
+                    if isinstance(msg, Client):
+                        clients.append(msg)
 
-                time.sleep(0.2)
+                    # We know isinstance(msg, AccAndGyro)
+                    acc = msg.acc
+                    gyro = msg.gyro
+
+                for client in clients:
+                    # TODO proper packet, not just the info packet
+                    packet = (
+                        b"DSUS",
+                        VERSION,
+                        0, # length from event_type on TODO
+                        0, # crc initial value
+                        client.id,
+                        0x100002,
+                        #
+                        0,
+                        2, # 0 - not connected, 1 - reserved, 2 - connected
+                        2, # 0 - not applicable, 1 - no or partial gyro, 2 - full gyro, 3 - do not use
+                        1, # 0 - not applicable, 1 - USB, 2 - bluetooth
+                        0, # unused - 0
+                        0, # unused - 0
+                        0, # unused - 0
+                        0, # 1 - connected, for info - 0
+                    )
+
+                    packet = packet[:3] + (
+                        calc_crc(
+                            struct.pack(
+                                "<4sHHIIIBBBBIHBB",
+                                *packet
+                            )
+                        )
+                    ,) + packet[4:]
+
+                    print("CRC: ", packet[3])
+
+                    sock.sendto(
+                        struct.pack(
+                            "<4sHHIIIBBBBIHBB",
+                            *packet
+                        ),
+                        client.addr
+                    )
+
+                time.sleep(0.0001)
 
             child_conn.close()
 
@@ -157,11 +222,10 @@ class DSUServer:
 
 
     def update(self, acc, gyro):
-        self.to_controller_data_conn.send([
-            False,
+        self.to_controller_data_conn.send(AccAndGyro(
             [acc[0], acc[1], acc[2]],
             [gyro[0], gyro[1], gyro[2]],
-        ])
+        ))
 
     def close(self):
         # Tell thread to shut down
@@ -170,11 +234,7 @@ class DSUServer:
         self.serve_process.close()
 
         # Tell thread to shut down
-        self.to_controller_data_conn.send([
-            True,
-            [],
-            [],
-        ])
+        self.to_controller_data_conn.send(Stop())
         self.controller_data_process.join()
         self.controller_data_process.close()
 
