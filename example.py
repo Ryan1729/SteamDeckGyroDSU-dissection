@@ -43,7 +43,7 @@ class DSUServer:
 
             return (~crc) & 0xFFFF_FFFF;
 
-        def serve(child_conn):
+        def serve(child_conn, client_conn):
             from enum import Enum
 
             sock = socket.socket(socket.AF_INET,  # Internet
@@ -58,7 +58,7 @@ class DSUServer:
                 packed_data, addr = sock.recvfrom(1024) # buffer size is 1024 bytes
                 print(f"Received message: {len(packed_data)} {packed_data} from {addr}")
                 (magic, version, length) = struct.unpack('<4sHH', packed_data[0:8])
-                print(f"{magic, version, length}")
+
                 # ~ char magic[4]; // DSUS - server, DSUC - client
                 # ~ uint16_t version; // 1001
                 # ~ uint16_t length; // without header
@@ -66,13 +66,11 @@ class DSUServer:
                     print(f"Unexpected magic value from {addr}: {magic}. Full data: {packed_data}")
                     child_conn.close()
                     return
-                print(f"Received message: {(magic, version, length)} from {addr}")
+
                 (_checksum, id, event_type) = struct.unpack('<III', packed_data[8:20])
                 # ~ uint32_t crc32; // whole packet with this field = 0
                 # ~ uint32_t id; // of packet source, constant among one run
                 # ~ uint32_t eventType; // no part of the header where length is involved
-
-                print(f"Received event: {hex(event_type)} from {addr}")
 
                 class EventType(Enum):
                     VERSION = 0x100000
@@ -118,8 +116,6 @@ class DSUServer:
                                 )
                             ,) + packet[4:]
 
-                            print("CRC: ", packet[3])
-
                             sock.sendto(
                                 struct.pack(
                                     "<4sHHIIIBBBBIHBB",
@@ -133,8 +129,9 @@ class DSUServer:
                         print(f"EventType.DATA {self.clients} {(addr, id)}")
                         client = Client(addr, id)
 
-                        if client not in self.clients:
-                            self.clients.append(client)
+                        client_conn.send(
+                            client
+                        )
                     case _:
                         print(f"Received unhandled event type {event_type}")
 
@@ -150,24 +147,28 @@ class DSUServer:
             sock = socket.socket(socket.AF_INET,  # Internet
                                  socket.SOCK_DGRAM) # UDP
 
+            packet_number = 0
+            timestamp_low = 0
+
             while True:
                 if child_conn.poll(0):
                     msg = child_conn.recv()
                     if isinstance(msg, Stop):
                         break
-                    if isinstance(msg, Client):
-                        clients.append(msg)
-
-                    # We know isinstance(msg, AccAndGyro)
-                    acc = msg.acc
-                    gyro = msg.gyro
+                    elif isinstance(msg, Client):
+                        if msg not in clients:
+                            clients.append(msg)
+                    else:
+                        # We know isinstance(msg, AccAndGyro)
+                        acc = msg.acc
+                        gyro = msg.gyro
 
                 for client in clients:
                     # TODO proper packet, not just the info packet
                     packet = (
                         b"DSUS",
                         VERSION,
-                        0, # length from event_type on TODO
+                        84, # length from event_type on TODO
                         0, # crc initial value
                         client.id,
                         0x100002,
@@ -180,28 +181,72 @@ class DSUServer:
                         0, # unused - 0
                         0, # unused - 0
                         0, # 1 - connected, for info - 0
+                        packet_number,
+                        0,
+                        0,
+                        0,
+                        0,
+
+                        0,
+                        0,
+                        0,
+                        0,
+
+                        0,
+                        0,
+                        0,
+                        0,
+
+                        0,
+                        0,
+                        0,
+                        0,
+
+                        0,
+                        0,
+                        0,
+                        0,
+
+                        0,
+                        0,
+                        0,
+
+                        timestamp_low,
+                        0,
+
+                        acc[0],
+                        acc[1],
+                        acc[2],
+
+                        gyro[0],
+                        gyro[1],
+                        gyro[2],
                     )
+
 
                     packet = packet[:3] + (
                         calc_crc(
                             struct.pack(
-                                "<4sHHIIIBBBBIHBB",
+                                "<4sHHIIIBBBBIHBBIBBBBBBBBBBBBBBBBBBBBIIIIIffffff",
                                 *packet
                             )
                         )
                     ,) + packet[4:]
 
-                    print("CRC: ", packet[3])
-
                     sock.sendto(
                         struct.pack(
-                            "<4sHHIIIBBBBIHBB",
+                            "<4sHHIIIBBBBIHBBIBBBBBBBBBBBBBBBBBBBBIIIIIffffff",
                             *packet
                         ),
                         client.addr
                     )
 
-                time.sleep(0.0001)
+                    packet_number += 1
+                    packet_number &= 0xFFFF_FFFF
+
+                    timestamp_low += 1
+
+                #time.sleep(0.0001)
 
             child_conn.close()
 
@@ -211,7 +256,7 @@ class DSUServer:
 
         to_controller_data_conn, into_controller_data_conn = mp.Pipe()
 
-        self.serve_process = mp.Process(target=serve, args=(into_serve_conn,))
+        self.serve_process = mp.Process(target=serve, args=(into_serve_conn, to_controller_data_conn))
         self.serve_process.start()
 
         self.controller_data_process = mp.Process(target=controller_data, args=(into_controller_data_conn,))

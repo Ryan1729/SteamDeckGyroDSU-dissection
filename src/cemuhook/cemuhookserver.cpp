@@ -357,7 +357,7 @@ namespace kmicki::cemuhook
             infoNoneAnswer.response.slot = slot;
             infoNoneAnswer.header.crc32 = 0;
             infoNoneAnswer.header.crc32 = crc32(reinterpret_cast<unsigned char *>(&infoNoneAnswer),len);
-            { LogF() << "CRC " << infoNoneAnswer.header.crc32 << "."; }
+            { LogF() << "INFO CRC (empty slot): " << infoNoneAnswer.header.crc32 << "."; }
             return std::pair<uint16_t , void const*>(len, reinterpret_cast<void *>(&infoNoneAnswer));
         }
         
@@ -366,7 +366,7 @@ namespace kmicki::cemuhook
         infoDeckAnswer.response.slotState = 2; // The controller is connected
         infoDeckAnswer.header.crc32 = 0;
         infoDeckAnswer.header.crc32 = crc32(reinterpret_cast<unsigned char *>(&infoDeckAnswer),len);
-        { LogF() << "CRC " << infoDeckAnswer.header.crc32 << "."; }
+        { LogF() << "INFO CRC (full slot): " << infoDeckAnswer.header.crc32 << "."; }
         return std::pair<uint16_t , void const*>(len, reinterpret_cast<void *>(&infoDeckAnswer));
     }
 
